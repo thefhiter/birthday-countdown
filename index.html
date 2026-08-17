@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Birthday Countdown</title>
+<meta name="description" content="Count down to someone's birthday and collect everyone's wishes as a word cloud. No sign-up, no server." />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<canvas id="fx" class="fx-layer" aria-hidden="true"></canvas>
+
+<header class="topbar">
+  <a class="brand" href="#main">
+    <span class="brand__mark" aria-hidden="true">🎂</span>
+    <span class="brand__text">Birthday Countdown</span>
+  </a>
+  <div class="topbar__right">
+    <button id="change-btn" class="linkbtn" type="button" hidden>Change</button>
+
+    <button id="theme-toggle" class="iconbtn" type="button" aria-pressed="false">
+      <span class="iconbtn__on" aria-hidden="true">🌙</span>
+      <span class="iconbtn__off" aria-hidden="true">☀️</span>
+      <span class="sr-only">Dark theme</span>
+    </button>
+
+    <button id="sound-toggle" class="iconbtn" type="button" aria-pressed="false">
+      <span class="iconbtn__on" aria-hidden="true">🔊</span>
+      <span class="iconbtn__off" aria-hidden="true">🔇</span>
+      <span class="sr-only">Sound</span>
+    </button>
+
+    <button id="motion-toggle" class="iconbtn" type="button" aria-pressed="true">
+      <span class="iconbtn__on" aria-hidden="true">✨</span>
+      <span class="iconbtn__off" aria-hidden="true">⏸️</span>
+      <span class="sr-only">Animations</span>
+    </button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <noscript>
+    <div class="noscript">
+      <h1>JavaScript is switched off</h1>
+      <p>The countdown is worked out in your browser, so the page needs JavaScript to run.
+         Everything still stays on your own device — nothing is sent anywhere.</p>
+    </div>
+  </noscript>
+
+  <!-- ============ setup: the only thing you fill in ============ -->
+  <section class="setup" id="setup" aria-labelledby="setup-title" hidden>
+    <h1 class="setup__title" id="setup-title">Whose birthday is it?</h1>
+    <p class="setup__sub">Add a name and a date. That's the whole setup.</p>
+
+    <form class="setup__form" id="setup-form" novalidate>
+      <div class="field">
+        <label class="field__label" for="setup-name">Name</label>
+        <input id="setup-name" class="field__input" type="text" maxlength="40"
+               placeholder="Their name" autocomplete="off"
+               aria-describedby="setup-name-error" />
+        <p class="field__error" id="setup-name-error" hidden></p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="setup-date">Birthday</label>
+        <input id="setup-date" class="field__input" type="date"
+               min="1900-01-01" autocomplete="off"
+               aria-describedby="setup-date-help setup-date-error" />
+        <p class="field__help" id="setup-date-help">The day they were born, so we can work out the age.</p>
+        <p class="field__error" id="setup-date-error" hidden></p>
+      </div>
+
+      <button class="btn" type="submit">Start the countdown</button>
+    </form>
+  </section>
+
+  <!-- ============ the countdown ============ -->
+  <section class="hero" id="hero" aria-labelledby="hero-name" hidden>
+    <p class="eyebrow" id="hero-eyebrow">Counting down to</p>
+    <h1 class="hero__name" id="hero-name">Someone</h1>
+    <p class="hero__meta" id="hero-meta"></p>
+
+    <!--
+      aria-live is off on purpose: a clock that announced itself every second
+      would make the page unusable with a screen reader. The digits stay
+      readable on demand, and #countdown-summary announces once a day instead.
+    -->
+    <div class="clock" id="clock" role="timer" aria-live="off" aria-label="Time remaining">
+      <div class="clock__unit">
+        <div class="flip" id="flip-days"><span class="flip__val">00</span></div>
+        <span class="clock__label">days</span>
+      </div>
+      <div class="clock__unit">
+        <div class="flip" id="flip-hours"><span class="flip__val">00</span></div>
+        <span class="clock__label">hours</span>
+      </div>
+      <div class="clock__unit">
+        <div class="flip" id="flip-minutes"><span class="flip__val">00</span></div>
+        <span class="clock__label">minutes</span>
+      </div>
+      <div class="clock__unit">
+        <div class="flip" id="flip-seconds"><span class="flip__val">00</span></div>
+        <span class="clock__label">seconds</span>
+      </div>
+    </div>
+    <p class="sr-only" id="countdown-summary" aria-live="polite"></p>
+
+    <!-- shown only on the day itself -->
+    <div class="today" id="today" hidden>
+      <button class="cake" id="cake" type="button">
+        <span class="sr-only" id="cake-label">Blow out the candles</span>
+        <span class="cake__candles" id="cake-candles"></span>
+        <span class="cake__body">
+          <span class="cake__layer l1"></span>
+          <span class="cake__layer l2"></span>
+          <span class="cake__plate"></span>
+        </span>
+      </button>
+      <p class="today__hint" id="today-hint">Press the cake to blow out the candles.</p>
+    </div>
+  </section>
+
+  <!-- ============ wishes as a word cloud ============ -->
+  <section class="section" id="wishes" aria-labelledby="wishes-heading" hidden>
+    <h2 class="sr-only" id="wishes-heading">Wishes</h2>
+
+    <div class="cloudpanel">
+      <h3 class="cloudpanel__q" id="cloud-question">Your birthday wish in 1 word</h3>
+
+      <!--
+        The cloud is scattered, absolutely positioned text — of no use read in
+        DOM order. It is hidden from assistive tech and mirrored underneath as
+        a plain list, sorted by how many people sent each word.
+      -->
+      <div class="cloud" id="cloud" aria-hidden="true"></div>
+      <p class="cloud__empty" id="cloud-empty">No words yet. Send the first one.</p>
+      <p class="cloud__more" id="cloud-more" aria-hidden="true" hidden></p>
+
+      <p class="cloudpanel__badge">
+        <span aria-hidden="true">👤</span>
+        <span aria-hidden="true" id="cloud-count">0</span>
+        <span class="sr-only" id="cloud-count-text">No words sent yet</span>
+      </p>
+
+      <h4 class="sr-only" id="cloud-sr-heading">The words on the cloud</h4>
+      <ul class="sr-only" id="cloud-sr" aria-labelledby="cloud-sr-heading"></ul>
+    </div>
+
+    <form class="wishform" id="wish-form" aria-labelledby="wishform-heading" novalidate>
+      <h3 class="sr-only" id="wishform-heading">Send your wish</h3>
+
+      <div class="wishform__row">
+        <div class="field">
+          <label class="field__label" for="wish-name">Your name</label>
+          <input id="wish-name" class="field__input" type="text" maxlength="40"
+                 placeholder="Who's wishing?" autocomplete="name"
+                 aria-describedby="wish-name-error" />
+          <p class="field__error" id="wish-name-error" hidden></p>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="wish-word">Your word</label>
+          <input id="wish-word" class="field__input field__input--word" type="text" maxlength="18"
+                 placeholder="joy" autocomplete="off"
+                 aria-describedby="wish-word-help wish-word-error" />
+          <p class="field__help" id="wish-word-help">One word — it goes on the cloud.</p>
+          <p class="field__error" id="wish-word-error" hidden></p>
+        </div>
+      </div>
+
+      <!--
+        Real radios rather than buttons with role="radio": arrow-key movement,
+        the "3 of 6" announcement and High Contrast rendering all come free,
+        and there is no roving-tabindex implementation left to get wrong.
+      -->
+      <fieldset class="fieldset">
+        <legend class="fieldset__legend">Mood</legend>
+        <div class="moods" id="emoji-pick"></div>
+      </fieldset>
+
+      <div class="field">
+        <label class="field__label" for="wish-text">Message <em>(optional)</em></label>
+        <textarea id="wish-text" class="field__input field__input--area" maxlength="240" rows="2"
+                  placeholder="Say more, if you want to."
+                  aria-describedby="wish-text-help"></textarea>
+        <p class="field__help" id="wish-text-help">Up to 240 characters.</p>
+        <p class="field__count" aria-hidden="true"><span id="wish-chars">0</span>/240</p>
+      </div>
+
+      <button class="btn" type="submit">Send it <span aria-hidden="true">🎉</span></button>
+    </form>
+
+    <h3 class="sr-only" id="wishlist-heading">Wishes so far</h3>
+    <ul class="wishlist" id="wish-list" aria-labelledby="wishlist-heading"></ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <p>Wishes are saved in this browser only — nothing is uploaded anywhere.</p>
+</footer>
+
+<!--
+  One polite region for everything the page wants to say. The toast below is
+  the same message drawn on screen; keeping the announcement here means it is
+  said once, not once per visual element that happens to update.
+-->
+<p class="sr-only" id="live-polite" aria-live="polite"></p>
+
+<div class="toast" id="toast">
+  <span id="toast-text" aria-hidden="true"></span>
+  <button class="toast__undo" id="toast-undo" type="button" hidden>Undo</button>
+</div>
+
+<script src="js/color.js"></script>
+<script src="js/data.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/countdown.js"></script>
+<script src="js/wordcloud.js"></script>
+<script src="js/wishes.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
