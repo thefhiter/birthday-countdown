@@ -73,7 +73,7 @@
 
   /** The id in the address bar, if this page was opened from a link. */
   function linkedId() {
-    var m = /[?&]b=([a-z0-9]{6,16})/i.exec(global.location.search || '');
+    var m = /[?&]b=([a-z0-9][a-z0-9-]{4,38}[a-z0-9])(?:&|$)/i.exec(global.location.search || '');
     return m ? m[1].toLowerCase() : null;
   }
 

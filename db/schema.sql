@@ -18,7 +18,8 @@ create extension if not exists pgcrypto;
 -- ---------------------------------------------------------------------
 
 create table if not exists public.birthdays (
-  id          text primary key check (id ~ '^[a-z0-9]{6,16}$'),
+  -- the readable part of the link: 'ahmed-ltaif-k3m9'
+  id          text primary key,
   name        text not null    check (char_length(name) between 1 and 40),
   date        date not null    check (date > date '1900-01-01' and date < date '2100-01-01'),
   hue         int              check (hue >= 0 and hue < 360),
@@ -45,6 +46,13 @@ create table if not exists public.wishes (
 
 create index if not exists wishes_birthday_idx
   on public.wishes (birthday_id, created_at desc);
+
+-- Stated as an ALTER rather than inline so that re-running this file on a
+-- database created by an earlier version actually widens the rule, instead of
+-- being skipped along with the `create table if not exists` above.
+alter table public.birthdays drop constraint if exists birthdays_id_ok;
+alter table public.birthdays add constraint birthdays_id_ok
+  check (id ~ '^[a-z0-9][a-z0-9-]{4,38}[a-z0-9]$');
 
 -- The length limits above are deliberately the same numbers as the maxlength
 -- attributes in index.html. The page enforces them so typing feels right; the

@@ -17,7 +17,8 @@
   var cfg = global.BD.config || {};
 
   var SLUG_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';   // no l/o/0/1
-  var SLUG_LENGTH = 8;
+  var SLUG_SUFFIX = 4;
+  var SLUG_NAME_MAX = 28;
 
   function isConfigured() {
     return !!(cfg.supabaseUrl && cfg.supabaseAnonKey);
@@ -51,6 +52,38 @@
 
   function newOwnerKey() {
     return randomFrom('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 40);
+  }
+
+  /**
+   * The link people are actually sent, so the name goes in it:
+   * "ahmed-ltaif-k3m9" rather than "k3m9x2qd".
+   *
+   * The four random characters on the end are not decoration. Without them the
+   * link for any given name is guessable, so anyone could find — or quietly
+   * take — the countdown for a name they know. They also let two different
+   * Ahmed Ltaifs exist at once.
+   *
+   * Accents are folded rather than dropped, so "Émilie" gives "emilie". A name
+   * in a script that does not reduce to ASCII at all — Arabic, Greek, Chinese —
+   * gives nothing to fold, and rather than emit mojibake or a percent-encoded
+   * mess in a link people paste into chat, those fall back to a random slug.
+   */
+  function slugify(name) {
+    var s = String(name || '');
+    if (s.normalize) s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return s.toLowerCase()
+      .replace(/['’]/g, '')          // o'brien -> obrien, not o-brien
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, SLUG_NAME_MAX)
+      .replace(/-+$/, '');           // the slice may have landed on a hyphen
+  }
+
+  function makeSlug(name) {
+    var stem = slugify(name);
+    var tail = randomFrom(SLUG_ALPHABET, SLUG_SUFFIX);
+    // a stem too short to be worth reading is not worth keeping
+    return stem.length >= 2 ? stem + '-' + tail : randomFrom(SLUG_ALPHABET, 8);
   }
 
   /**
@@ -105,13 +138,14 @@
   /**
    * Publish a countdown and get back its id and owner key.
    *
-   * The id is generated here rather than by the database so the link can be
-   * short and pronounceable. Collisions are possible but vanishingly rare;
-   * the primary key catches them and we simply pick another.
+   * The id is built here rather than by the database so the link can carry the
+   * name. Two people making a countdown for the same name in the same second
+   * could collide on the random suffix; the primary key catches it and we try
+   * again with a different one.
    */
   function createBirthday(person, attempt) {
     attempt = attempt || 0;
-    var id = randomFrom(SLUG_ALPHABET, SLUG_LENGTH);
+    var id = makeSlug(person.name);
     var ownerKey = newOwnerKey();
 
     return request('/rest/v1/birthdays', {
@@ -197,6 +231,8 @@
   global.BD = global.BD || {};
   global.BD.cloud = {
     isConfigured: isConfigured,
+    slugify: slugify,
+    makeSlug: makeSlug,
     createBirthday: createBirthday,
     getBirthday: getBirthday,
     listWishes: listWishes,

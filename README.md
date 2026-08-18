@@ -24,7 +24,9 @@ Sound is off by default. Turn it on with the 🔊 button and you get ticks, pops
 
 ## Sharing a link
 
-Type a name, get a link. Send `…/?b=k3m9x2qd` to whoever you like: they open it, see the same countdown, and add their wish to the same cloud you are looking at. An open page picks up new wishes on its own, so you can watch them arrive.
+Type a name, get a link. Send `…/?b=ahmed-ltaif-k3m9` to whoever you like: they open it, see the same countdown, and add their wish to the same cloud you are looking at. An open page picks up new wishes on its own, so you can watch them arrive.
+
+The name is in the link because a link is a thing people read before they tap it. The four characters after it are not decoration: without them the link for any given name is guessable, so anyone could find — or quietly take — the countdown for a name they know, and no two people called Ahmed Ltaif could have one at the same time. Names in a script that does not reduce to ASCII — Arabic, Greek, Chinese — get a random link instead of a percent-encoded mess; the countdown itself still shows the name exactly as typed.
 
 **Who can do what.** Whoever made the link is the only one who can remove wishes from it. That is not the page hiding a button — the page does hide it, but the rule is a `SECURITY DEFINER` function in the database that checks a secret generated in the creator's browser, kept in their `localStorage`, and never put in the URL. A guest with the page source, the anon key and a forged key still gets `false` back. Losing that device means losing the ability to moderate; the link keeps working for everyone else.
 

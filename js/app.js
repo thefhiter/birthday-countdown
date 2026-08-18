@@ -433,6 +433,8 @@
     applyAccent(typeof person.hue === 'number' ? person.hue : data.hueFor(person.name));
 
     q('hero-name').textContent = person.name;
+    // so the tab, the history entry and a bookmark all say whose it is
+    document.title = person.name + '’s birthday · Birthday Countdown';
     wishes.setQuestion(person.name);
     wishes.render();
     cd.resetClock();
