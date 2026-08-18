@@ -16,11 +16,13 @@
 
   global.BD = global.BD || {};
   global.BD.config = {
-    // e.g. 'https://abcdefghijklm.supabase.co'
-    supabaseUrl: '',
+    supabaseUrl: 'https://qcyyijtoparijgsnoksq.supabase.co',
 
-    // the "anon public" key from Settings → API
-    supabaseAnonKey: '',
+    // The publishable key from Settings → API. Public on purpose: it is in
+    // this file, in the repo, and in the page source, and none of that
+    // matters — db/schema.sql grants it read-a-countdown, add-a-wish and
+    // create-a-countdown, and nothing else.
+    supabaseAnonKey: 'sb_publishable_yxtq44R0NOj7mD3Hkwwxpg_De4ooUqO',
 
     // how often an open page checks for new wishes, in ms
     pollMs: 8000
