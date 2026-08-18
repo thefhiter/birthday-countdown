@@ -1,0 +1,28 @@
+# The accent colour is generated from a hash of whatever name someone types,
+# so its contrast cannot be eyeballed once and trusted. This re-solves all 360
+# hues in both themes on every push, alongside the static tokens read straight
+# out of css/styles.css, and fails the build if any of them slips under its
+# WCAG 2.2 AA ratio.
+name: contrast
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Contrast audit
+        run: node tools/contrast-check.js
+
+      - name: Single-file build still works
+        run: node tools/build-single.js
