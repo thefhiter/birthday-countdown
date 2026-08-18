@@ -153,14 +153,20 @@
     }
 
     data.setPref('lastName', name);
-    var wish = data.addWish({ who: name, word: word, text: text, emoji: chosenMood });
 
     els.word.value = '';
     els.text.value = '';
     els.chars.textContent = '0';
     lastWord = word;
 
-    render({ newestId: wish.id, quiet: true });
+    /* The word is in the cache before the request goes out, so the cloud
+       reacts to the press rather than to the round trip. If the server
+       refuses, data.addWish takes it back out and we put the reader's words
+       back in the boxes rather than losing them. */
+    var sending = data.addWish({ who: name, word: word, text: text, emoji: chosenMood });
+
+    var first = data.getWishes()[0];
+    render({ newestId: first && first.id, quiet: true });
 
     if (global.BD.audio) global.BD.audio.play('chime');
     if (global.BD.fx) {
@@ -175,6 +181,20 @@
     notify.say(same > 1
       ? '"' + word + '" added. ' + same + ' people have said that.'
       : '"' + word + '" added to the cloud.');
+
+    sending.then(function () {
+      // the stored wish has replaced the optimistic one; redraw so the delete
+      // button is wired to the id the server actually knows about
+      if (data.mode() === 'shared') render({ quiet: true });
+    }).catch(function (err) {
+      els.word.value = word;
+      els.text.value = text;
+      els.chars.textContent = String(text.length);
+      render({ quiet: true });
+      showError(els.word, 'wish-word-error', err.message || 'That wish could not be sent.');
+      els.word.focus();
+      notify.say('That wish could not be sent.');
+    });
   }
 
   function wordOf(wish) { return cloud.normalize(wish.word || ''); }
@@ -290,14 +310,27 @@
     word.className = 'wish__word';
     word.textContent = wordOf(w);
 
-    var del = document.createElement('button');
-    del.className = 'wish__del';
-    del.type = 'button';
-    del.setAttribute('aria-label', 'Remove ' + w.who + "'s wish, " + wordOf(w));
-    del.innerHTML = '<span aria-hidden="true">&times;</span>';
-    del.addEventListener('click', function () { removeWish(w, li); });
+    /* On a shared cloud only the person who made the link gets these. The
+       database enforces the same rule (see delete_wish in db/schema.sql) —
+       hiding the button is a courtesy, not the protection. */
+    if (data.canRemove() && !w.pending) {
+      var del = document.createElement('button');
+      del.className = 'wish__del';
+      del.type = 'button';
+      del.setAttribute('aria-label', 'Remove ' + w.who + "'s wish, " + wordOf(w));
+      del.innerHTML = '<span aria-hidden="true">&times;</span>';
+      del.addEventListener('click', function () { removeWish(w, li); });
+      li.appendChild(del);
+    }
 
-    li.appendChild(del);
+    if (w.pending) {
+      li.classList.add('is-pending');
+      var flag = document.createElement('span');
+      flag.className = 'sr-only';
+      flag.textContent = 'Sending.';
+      li.appendChild(flag);
+    }
+
     li.appendChild(top);
     li.appendChild(word);
 
@@ -310,11 +343,7 @@
     return li;
   }
 
-  /**
-   * Removing a wish takes the focused button out of the document with it.
-   * Focus has to be put somewhere deliberate or it falls back to <body>, and a
-   * keyboard reader is returned to the top of the page for having tidied up.
-   */
+  /** Remove a wish, optimistically, and say so. */
   function removeWish(wish, li) {
     var buttons = [].slice.call(els.list.querySelectorAll('.wish__del'));
     var at = buttons.indexOf(li.querySelector('.wish__del'));
@@ -326,26 +355,49 @@
     var snapshot = wish;
 
     global.setTimeout(function () {
-      data.removeWish(wish.id);
+      var going = data.removeWish(wish.id);
       render();
+      restoreFocus(nextFocusIndex);
 
-      var after = [].slice.call(els.list.querySelectorAll('.wish__del'));
-      if (after.length && nextFocusIndex >= 0) after[Math.min(nextFocusIndex, after.length - 1)].focus();
-      else if (after.length) after[0].focus();
-      else els.name.focus();   // list is empty now — the form is the only thing left
-
-      notify.say('Removed ' + snapshot.who + "'s wish.", {
-        undo: function () {
-          data.addWish({ who: snapshot.who, word: snapshot.word, text: snapshot.text, emoji: snapshot.emoji });
-          lastWord = cloud.normalize(snapshot.word || '');
-          render();
-          notify.say('Put ' + snapshot.who + "'s wish back.");
-          var back = els.list.querySelector('.wish__del');
-          if (back) back.focus();
-        },
-        undoLabel: 'Undo removing ' + snapshot.who + "'s wish"
+      going.then(function () {
+        notify.say('Removed ' + snapshot.who + "'s wish.", {
+          undo: function () {
+            data.addWish({
+              who: snapshot.who, word: snapshot.word,
+              text: snapshot.text, emoji: snapshot.emoji
+            }).then(function () {
+              render();
+            }).catch(function (err) {
+              render();
+              notify.say(err.message || 'That wish could not be put back.');
+            });
+            lastWord = cloud.normalize(snapshot.word || '');
+            render();
+            notify.say('Put ' + snapshot.who + "'s wish back.");
+            var back = els.list.querySelector('.wish__del');
+            if (back) back.focus();
+          },
+          undoLabel: 'Undo removing ' + snapshot.who + "'s wish"
+        });
+      }).catch(function (err) {
+        // the wish is back in the list already; say why it did not go
+        render();
+        restoreFocus(nextFocusIndex);
+        notify.say(err.message || 'That wish could not be removed.');
       });
     }, 320);
+  }
+
+  /**
+   * Put focus back where the reader was, not on <body>. Deleting takes the
+   * focused button out of the document with it, and a keyboard reader that
+   * tidies up should not be returned to the top of the page for it.
+   */
+  function restoreFocus(index) {
+    var after = [].slice.call(els.list.querySelectorAll('.wish__del'));
+    if (after.length && index >= 0) after[Math.min(index, after.length - 1)].focus();
+    else if (after.length) after[0].focus();
+    else els.name.focus();   // list is empty now — the form is the only thing left
   }
 
   global.BD = global.BD || {};

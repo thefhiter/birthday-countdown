@@ -605,3 +605,77 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
   .cloud__word { forced-color-adjust: none; }
   .skip-link { border: 2px solid CanvasText; }
 }
+
+/* ---------- shareable links ---------- */
+
+/* the primary action in the header reads as one, without relying on colour
+   alone — it is filled, so its shape differs too */
+.linkbtn--go {
+  background: var(--accent); color: var(--on-accent);
+  border-color: transparent; font-weight: 700;
+}
+.linkbtn--go:hover {
+  background: var(--accent); color: var(--on-accent);
+  filter: brightness(.92) saturate(1.1); border-color: transparent;
+}
+.linkbtn[disabled] { opacity: 1; cursor: progress; }
+
+/* whole-page states: opening a link, and a link that did not open */
+.state {
+  max-width: 34rem; margin: clamp(3rem, 14vh, 7rem) auto; padding: 0 var(--pad);
+  text-align: center; display: grid; gap: .7rem; justify-items: center;
+}
+.state[hidden] { display: none; }
+.state__title {
+  font-size: clamp(1.5rem, 4.5vw, 2rem); font-weight: 800;
+  letter-spacing: -.03em; line-height: 1.15; text-wrap: balance;
+}
+.state__body { color: var(--ink-dim); text-wrap: pretty; }
+.state__actions {
+  display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; margin-top: .8rem;
+}
+
+/* ---------- the share sheet ----------
+   A native <dialog>. showModal() supplies the focus trap, the Escape key and
+   inertness for the rest of the page, so none of that is reimplemented here. */
+.sheet {
+  width: min(34rem, calc(100vw - 2rem));
+  padding: clamp(1.3rem, 4vw, 1.9rem);
+  border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  background: var(--surface); color: var(--ink);
+  box-shadow: var(--shadow-lg);
+}
+.sheet::backdrop { background: hsl(232 40% 8% / .55); backdrop-filter: blur(3px); }
+.sheet__title {
+  font-size: clamp(1.15rem, 3vw, 1.4rem); font-weight: 800;
+  letter-spacing: -.02em; margin-bottom: .4rem;
+}
+.sheet__body { color: var(--ink-dim); font-size: .95rem; text-wrap: pretty; }
+
+.sheet__linkrow {
+  display: flex; gap: .5rem; align-items: stretch; margin: 1.1rem 0 .5rem;
+  flex-wrap: wrap;
+}
+.sheet__linkrow .field__input {
+  flex: 1 1 14rem; min-width: 0;
+  font-family: var(--font-num); font-size: .88rem;
+}
+.sheet__linkrow .btn { flex: none; }
+
+/* role="status", so it must exist and be empty rather than appear on success —
+   a live region added to the DOM at the moment it has something to say is a
+   live region that frequently says nothing */
+.sheet__status {
+  min-height: 1.4rem; font-size: .85rem; font-weight: 650; color: var(--accent-text);
+}
+.sheet__actions { display: flex; justify-content: flex-end; margin-top: 1rem; }
+
+/* a wish on its way to the server: dimmed is not enough on its own, so it also
+   carries hidden "Sending." text for anyone not looking at the opacity */
+.wish.is-pending { opacity: .72; border-style: dashed; }
+
+@media (forced-colors: active) {
+  .sheet { border: 1px solid CanvasText; }
+  .linkbtn--go { border: 1px solid ButtonText; }
+  .wish.is-pending { border-style: dashed; }
+}

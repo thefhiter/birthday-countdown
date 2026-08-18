@@ -2,7 +2,9 @@
 
 Count down to someone's birthday, and collect everyone's wishes as a word cloud.
 
-Add a name and a date — that's the whole setup. No accounts, no server, no build step. Open `index.html` in a browser and it works.
+Add a name and a date — that's the whole setup. No accounts, no build step. Open `index.html` in a browser and it works.
+
+Add a Supabase project and it also hands you a link: send it round, and everyone's wishes land on the same cloud. Without one it still runs exactly as before, on your own device, with no network calls at all.
 
 ## What it does
 
@@ -20,9 +22,31 @@ Under the cloud, each wish is listed with who sent it, their mood, and an option
 
 Sound is off by default. Turn it on with the 🔊 button and you get ticks, pops, the correct/wrong stings, firework booms and the birthday melody itself — all generated in the browser with the Web Audio API. There are no audio files in the repo, so there's nothing to download and nothing to 404.
 
+## Sharing a link
+
+Type a name, get a link. Send `…/?b=k3m9x2qd` to whoever you like: they open it, see the same countdown, and add their wish to the same cloud you are looking at. An open page picks up new wishes on its own, so you can watch them arrive.
+
+**Who can do what.** Whoever made the link is the only one who can remove wishes from it. That is not the page hiding a button — the page does hide it, but the rule is a `SECURITY DEFINER` function in the database that checks a secret generated in the creator's browser, kept in their `localStorage`, and never put in the URL. A guest with the page source, the anon key and a forged key still gets `false` back. Losing that device means losing the ability to moderate; the link keeps working for everyone else.
+
+**Turning it on.** Sharing is off until you fill in two values, and the site is fully usable without it.
+
+1. Make a free project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor → New query**, paste all of [`db/schema.sql`](db/schema.sql), and run it. It is safe to run again later.
+3. Copy **Settings → API → Project URL** and the **anon public** key into `js/config.js`.
+
+Both of those values are public by design — anyone can read them out of the page. That is why `db/schema.sql` never trusts them: row-level security allows exactly "read any countdown, add a wish, create a countdown", and nothing else. There is no policy for `UPDATE` or `DELETE`, so with RLS on, Postgres refuses both outright. The `owner_key` column can be inserted but not selected, so it goes in and never comes back out.
+
+Never paste the **service role** key into `js/config.js`. That one bypasses every rule in the file.
+
+**What it does not do.** There is no rate limiting — Postgres alone cannot do it well, and anyone with the anon key can post as fast as they like. For a link passed round a group chat that is fine. If one ever gets spammed, delete the row and its wishes go with it.
+
 ## Where the data lives
 
-In your browser, and nowhere else. Wishes and the birthday itself are kept in `localStorage` on the device that entered them — there's no backend, no database, no network request. That also means wishes don't travel between devices: if you want a group to fill the same cloud, they need to be on the same browser, or each person ends up with their own copy. **Change** in the header clears the person and every wish, and asks first.
+Without Supabase configured: in your browser and nowhere else. Wishes and the birthday are kept in `localStorage` on the device that entered them — no backend, no database, no network request. Wishes don't travel between devices, so a group filling one cloud would each end up with their own copy.
+
+With Supabase configured: the countdown and its wishes live in your project, and the link is how people reach them. Preferences — sound, motion, theme — stay local either way.
+
+**Change** in the header clears the countdown on this device, and asks first. It only appears on your own; someone who arrived by a link gets **Make your own** instead.
 
 ## Accessibility
 
@@ -53,8 +77,10 @@ and an axe-core + keyboard pass in a real browser, run against the setup screen,
 ```
 index.html                markup
 css/styles.css            all styling; two themes from one token set
+js/config.js              your Supabase URL and anon key; empty = sharing off
 js/color.js               contrast maths — the ratios, and solving for them
-js/data.js                the person, the wishes, localStorage
+js/cloud.js               the shared cloud, over plain fetch — no SDK
+js/data.js                the person and the wishes, local or shared
 js/notify.js              the toast and the one polite live region
 js/audio.js               the synthesizer — every sound on the page
 js/fx.js                  canvas confetti and fireworks
@@ -62,6 +88,7 @@ js/countdown.js           birthday maths and the clock
 js/wordcloud.js           spiral packing and sizing for the cloud
 js/wishes.js              the wish form, cloud and list
 js/app.js                 theme, setup screen, countdown loop, the day itself
+db/schema.sql             the tables, the row-level rules, the delete check
 tools/contrast-check.js   the contrast audit
 tools/build-single.js     optional: squash it all into one file
 ```

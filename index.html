@@ -21,6 +21,8 @@
     <span class="brand__text">Birthday Countdown</span>
   </a>
   <div class="topbar__right">
+    <button id="share-btn" class="linkbtn linkbtn--go" type="button" hidden>Share</button>
+    <button id="mine-btn" class="linkbtn" type="button" hidden>Make your own</button>
     <button id="change-btn" class="linkbtn" type="button" hidden>Change</button>
 
     <button id="theme-toggle" class="iconbtn" type="button" aria-pressed="false">
@@ -53,6 +55,21 @@
     </div>
   </noscript>
 
+  <!-- ============ opening a shared link ============ -->
+  <section class="state" id="loading" aria-labelledby="loading-title" hidden>
+    <h1 class="state__title" id="loading-title">Opening the countdown…</h1>
+    <p class="state__body" id="loading-body">Fetching the wishes sent so far.</p>
+  </section>
+
+  <section class="state" id="link-error" aria-labelledby="link-error-title" hidden>
+    <h1 class="state__title" id="link-error-title">That link didn't work</h1>
+    <p class="state__body" id="link-error-body"></p>
+    <div class="state__actions">
+      <button class="btn" id="link-retry" type="button">Try again</button>
+      <button class="linkbtn" id="link-own" type="button">Make your own countdown</button>
+    </div>
+  </section>
+
   <!-- ============ setup: the only thing you fill in ============ -->
   <section class="setup" id="setup" aria-labelledby="setup-title" hidden>
     <h1 class="setup__title" id="setup-title">Whose birthday is it?</h1>
@@ -76,6 +93,9 @@
         <p class="field__error" id="setup-date-error" hidden></p>
       </div>
 
+      <p class="field__help" id="setup-share-note" hidden>
+        You'll get a link anyone can open to add their wish.
+      </p>
       <button class="btn" type="submit">Start the countdown</button>
     </form>
   </section>
@@ -212,12 +232,43 @@
 -->
 <p class="sr-only" id="live-polite" aria-live="polite"></p>
 
+<!--
+  A native <dialog>: showModal() brings the focus trap, the Escape key and
+  inertness of everything behind it with it, which is a great deal of ARIA and
+  keydown handling not written here and so not got wrong here.
+-->
+<dialog class="sheet" id="share-dialog" aria-labelledby="share-title">
+  <h2 class="sheet__title" id="share-title">Share this countdown</h2>
+  <p class="sheet__body" id="share-body">
+    Anyone with this link can open the countdown and add a wish. Every wish
+    lands on the same cloud, so you will see them all.
+  </p>
+
+  <div class="sheet__linkrow">
+    <label class="sr-only" for="share-link">Link to this countdown</label>
+    <input class="field__input" id="share-link" type="text" readonly />
+    <button class="btn" id="share-copy" type="button">Copy</button>
+  </div>
+
+  <p class="sheet__status" id="share-status" role="status"></p>
+
+  <p class="field__help" id="share-note">
+    Keep this device to manage the wishes — it is the only one that can remove them.
+  </p>
+
+  <div class="sheet__actions">
+    <button class="linkbtn" id="share-close" type="button">Close</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast">
   <span id="toast-text" aria-hidden="true"></span>
   <button class="toast__undo" id="toast-undo" type="button" hidden>Undo</button>
 </div>
 
+<script src="js/config.js"></script>
 <script src="js/color.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/data.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/audio.js"></script>

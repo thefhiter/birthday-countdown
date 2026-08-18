@@ -11,6 +11,7 @@
   var wishes = global.BD.wishes;
   var colour = global.BD.color;
   var notify = global.BD.notify;
+  var cloud = global.BD.cloud;
 
   var reducedQuery = global.matchMedia ? global.matchMedia('(prefers-reduced-motion: reduce)') : null;
   var darkQuery = global.matchMedia ? global.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -22,7 +23,11 @@
     celebrated: false,
     timer: null,
     lastSaid: null,
-    booted: false
+    booted: false,
+    linkId: null,        // the ?b= this page was opened with
+    poll: null,          // interval that keeps a shared cloud fresh
+    polling: false,      // a refresh is already in flight
+    pollBound: false
   };
 
   function q(id) { return document.getElementById(id); }
@@ -70,10 +75,184 @@
       else if (reducedQuery.addListener) reducedQuery.addListener(onReduced);
     }
 
-    show(data.getPerson());
+    q('share-btn').addEventListener('click', onShare);
+    q('mine-btn').addEventListener('click', goToOwn);
+    q('link-own').addEventListener('click', goToOwn);
+    q('link-retry').addEventListener('click', function () { openLink(state.linkId); });
+    q('share-copy').addEventListener('click', copyLink);
+    q('share-close').addEventListener('click', function () { closeSheet(); });
+    q('share-dialog').addEventListener('close', function () {
+      var back = q('share-btn');
+      if (back && !back.hidden) back.focus();
+    });
+
+    q('setup-share-note').hidden = !cloud.isConfigured();
+
     startClock();
     state.booted = true;
+    route();
   });
+
+  /* ---------- which page is this ---------- */
+
+  /**
+   * A ?b=<id> in the address is a shared countdown; anything else is the one
+   * on this device. The link is the whole routing table.
+   */
+  function route() {
+    var id = data.linkedId();
+    if (!id) { show(data.getPerson()); return; }
+    openLink(id);
+  }
+
+  function openLink(id) {
+    state.linkId = id;
+    screen('loading');
+    notify.announce('Opening the countdown.');
+
+    data.openShared(id).then(function (person) {
+      show(person, { announce: true });
+      startPolling();
+    }).catch(function (err) {
+      q('link-error-body').textContent = err.message || 'The countdown could not be opened.';
+      screen('link-error');
+      q('link-retry').focus();
+      notify.announce('That link did not work.');
+    });
+  }
+
+  /** Show one of the whole-page states, and nothing else. */
+  function screen(which) {
+    q('loading').hidden = which !== 'loading';
+    q('link-error').hidden = which !== 'link-error';
+    q('setup').hidden = true;
+    q('hero').hidden = true;
+    q('wishes').hidden = true;
+    q('share-btn').hidden = true;
+    q('change-btn').hidden = true;
+    q('mine-btn').hidden = true;
+  }
+
+  function goToOwn() {
+    global.location.href = global.location.origin + global.location.pathname;
+  }
+
+  /* ---------- sharing ---------- */
+
+  function onShare() {
+    if (data.mode() === 'shared') { openSheet(data.shareLink()); return; }
+
+    if (!cloud.isConfigured()) {
+      notify.say('Sharing is not set up on this copy of the site.');
+      return;
+    }
+
+    var btn = q('share-btn');
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Making a link…';
+    notify.announce('Making a link.');
+
+    data.publish().then(function (made) {
+      // the address bar becomes the link, so a refresh or a bookmark still works
+      global.history.replaceState(null, '', made.link);
+      show(data.getPerson());
+      startPolling();
+      openSheet(made.link);
+    }).catch(function (err) {
+      notify.say(err.message || 'The link could not be made.');
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = label;
+    });
+  }
+
+  function openSheet(link) {
+    var sheet = q('share-dialog');
+    q('share-link').value = link;
+    q('share-status').textContent = '';
+    // only the device that made the link can remove wishes, so only it is told so
+    q('share-note').hidden = !data.isOwner();
+
+    if (sheet.showModal) sheet.showModal();
+    else sheet.setAttribute('open', '');
+
+    q('share-link').focus();
+    q('share-link').select();
+  }
+
+  function closeSheet() {
+    var sheet = q('share-dialog');
+    if (sheet.close) sheet.close();
+    else sheet.removeAttribute('open');
+  }
+
+  function copyLink() {
+    var input = q('share-link');
+    input.focus();
+    input.select();
+
+    /* Said into the dialog's own status line rather than the page-wide one:
+       a modal dialog makes the rest of the document inert, and an inert live
+       region is a live region nobody hears. */
+    function said(message) { q('share-status').textContent = message; }
+
+    function byHand() {
+      try {
+        said(document.execCommand('copy') ? 'Link copied.' : 'Press Ctrl+C to copy the link.');
+      } catch (err) {
+        said('Press Ctrl+C to copy the link.');
+      }
+    }
+
+    if (global.navigator.clipboard && global.navigator.clipboard.writeText) {
+      global.navigator.clipboard.writeText(input.value)
+        .then(function () { said('Link copied.'); }, byHand);
+    } else {
+      byHand();
+    }
+  }
+
+  /* ---------- keeping a shared cloud fresh ---------- */
+
+  function startPolling() {
+    if (state.poll) global.clearInterval(state.poll);
+    if (data.mode() !== 'shared') return;
+
+    var every = Math.max(3000, (global.BD.config && global.BD.config.pollMs) || 8000);
+    state.poll = global.setInterval(pollNow, every);
+
+    // coming back to the tab is the moment people most want it current
+    if (!state.pollBound) {
+      state.pollBound = true;
+      global.addEventListener('focus', pollNow);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) pollNow();
+      });
+    }
+  }
+
+  function pollNow() {
+    if (data.mode() !== 'shared' || state.polling || document.hidden) return;
+    state.polling = true;
+
+    var before = signature();
+    data.refresh().then(function () {
+      if (signature() === before) return;
+      wishes.render();
+      notify.announce('The wishes were updated.');
+    }).catch(function () {
+      // a poll that fails is not news — the next one tries again
+    }).then(function () {
+      state.polling = false;
+    });
+  }
+
+  /** Cheap "has anything changed" stamp: how many, and which is newest. */
+  function signature() {
+    var list = data.getWishes();
+    return list.length + '|' + (list[0] ? list[0].id : '');
+  }
 
   /* ---------- theme ---------- */
 
@@ -203,6 +382,11 @@
     show(data.setPerson(name, date), { announce: true });
     if (state.motion) fx.confetti({ count: 130, y: global.innerHeight * .3, silent: !audio.isEnabled() });
     audio.play('chime');
+
+    /* "Type a name, get a link" is the whole point of sharing, so when it is
+       configured the link is made here rather than behind another press. If it
+       fails, onShare says so and the countdown carries on locally. */
+    if (cloud.isConfigured()) onShare();
   }
 
   function onChange() {
@@ -223,10 +407,19 @@
     state.lastSaid = null;
 
     var hasPerson = !!person;
+    var isShared = data.mode() === 'shared';
+
+    q('loading').hidden = true;
+    q('link-error').hidden = true;
     q('setup').hidden = hasPerson;
     q('hero').hidden = !hasPerson;
     q('wishes').hidden = !hasPerson;
-    q('change-btn').hidden = !hasPerson;
+
+    // Change clears the countdown on this device, which is not a thing a guest
+    // should be offered; they get a way to start their own instead.
+    q('change-btn').hidden = !hasPerson || isShared;
+    q('mine-btn').hidden = !isShared;
+    q('share-btn').hidden = !hasPerson || (!isShared && !cloud.isConfigured());
 
     if (!hasPerson) {
       applyAccent(262);
