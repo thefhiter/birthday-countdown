@@ -148,7 +148,12 @@
     var id = makeSlug(person.name);
     var ownerKey = newOwnerKey();
 
-    return request('/rest/v1/birthdays', {
+    /* The ?select= is not optional. With `return=representation` PostgREST
+       reads the new row back across *every* column, and owner_key is granted
+       for INSERT but not for SELECT — so asking for the whole row is asking
+       for the one column anon may never read, and the insert comes back 401.
+       Naming the readable columns is what makes the write and the rule agree. */
+    return request('/rest/v1/birthdays?select=id,name,date,hue', {
       method: 'POST',
       headers: { 'Prefer': 'return=representation' },
       body: { id: id, name: person.name, date: person.date, hue: person.hue, owner_key: ownerKey }
@@ -184,7 +189,7 @@
   }
 
   function addWish(birthdayId, wish) {
-    return request('/rest/v1/wishes', {
+    return request('/rest/v1/wishes?select=id,who,word,message,emoji,created_at', {
       method: 'POST',
       headers: { 'Prefer': 'return=representation' },
       body: {
